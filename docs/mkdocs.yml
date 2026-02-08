@@ -1,4 +1,4 @@
-site_name: acme-data-metrics
+site_name: acme-metrics
 theme:
   name: material # readthedocs
 nav:

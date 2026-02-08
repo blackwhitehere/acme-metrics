@@ -1,4 +1,4 @@
-# acme-dm
+# acme-metrics
 
 Compute metrics from data
 
@@ -36,7 +36,7 @@ If you are using VSCode, set to use this env via `Python: Select Interpreter` co
 
 ```python
 import polars as pl
-from acme_dm.data_metrics import add_new_metrics, create_metrics
+from acme_metrics.data_metrics import add_new_metrics, create_metrics
 from acme_dw import DatasetMetadata
 
 # Define a sample metrics function

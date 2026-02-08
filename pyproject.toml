@@ -3,7 +3,7 @@ requires = [ "setuptools>=46.4.0", "wheel>=0.36.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "acme_dm"
+name = "acme_metrics"
 version = "0.0.1"
 description = "Compute metrics from data"
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [ "python-dotenv", "polars", "pyarrow", "acme_dw>=0.0.4" ]
 email = "guner.stan@gmail.com"
 
 [project.scripts]
-adm = "acme_dm._main:main"
+adm = "acme_metrics._main:main"
 
 [project.urls]
 homepage = "https://example.com"
@@ -36,7 +36,7 @@ dev = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["acme_dm"]
+packages = ["acme_metrics"]
 # https://github.com/astral-sh/uv/issues/9513#issuecomment-2519527822
 license-files = []
 # [tool.setuptools.package-data]
