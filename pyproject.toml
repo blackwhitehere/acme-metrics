@@ -39,4 +39,9 @@ package-dir = {"" = "src"}
 packages = ["acme_metrics"]
 # https://github.com/astral-sh/uv/issues/9513#issuecomment-2519527822
 license-files = []
+
+[dependency-groups]
+dev = [
+    "streamlit>=1.54.0",
+]
 # [tool.setuptools.package-data]
