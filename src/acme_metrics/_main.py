@@ -2,9 +2,7 @@ import argparse
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        prog="adm", description="Compute metrics from data"
-    )
+    parser = argparse.ArgumentParser(prog="adm", description="Compute metrics from data")
     return parser.parse_args()
 
 

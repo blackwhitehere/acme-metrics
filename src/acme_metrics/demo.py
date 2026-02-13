@@ -1,21 +1,27 @@
-"""Fixture data generators for the metrics demo dashboard.
+"""Demo fixture setup: populate metrics store with sample computed metrics.
 
-Generates sample DataFrames representing different metric schemas
-to showcase the dashboard without requiring a data warehouse connection.
+Usage:
+    python -m acme_metrics.demo --setup
 """
 
 from __future__ import annotations
 
+import argparse
+import math
+import shutil
 from datetime import date, timedelta
+from pathlib import Path
 
-import polars as pl
+import pandas as pd
+
+from acme_metrics.store import MetricRecord, MetricsStore
+
+DEMO_DIR = Path(__file__).parent / "_demo_data"
+METRICS_DB = DEMO_DIR / "metrics.duckdb"
 
 
-def generate_stock_returns_metrics() -> pl.DataFrame:
-    """Generate daily return metrics for a set of stocks."""
-    import math
-
-    rng_seed = 42
+def generate_stock_returns_data() -> pd.DataFrame:
+    """Generate daily return data for a set of stocks."""
     stocks = ["AAPL", "GOOG", "MSFT", "AMZN", "TSLA"]
     start = date(2024, 1, 1)
     n_days = 252
@@ -23,8 +29,7 @@ def generate_stock_returns_metrics() -> pl.DataFrame:
     rows: list[dict] = []
     for i, ticker in enumerate(stocks):
         price = 100.0 + i * 20
-        # deterministic pseudo-random using simple LCG
-        seed = rng_seed + i * 7
+        seed = 42 + i * 7
         for d in range(n_days):
             seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
             noise = (seed / 0x7FFFFFFF - 0.5) * 6
@@ -35,7 +40,7 @@ def generate_stock_returns_metrics() -> pl.DataFrame:
             rows.append(
                 {
                     "date": start + timedelta(days=d),
-                    "entity": ticker,
+                    "ticker": ticker,
                     "daily_return_pct": round(daily_return, 4),
                     "cumulative_return_pct": round(cum_return, 2),
                     "price": round(price, 2),
@@ -43,10 +48,10 @@ def generate_stock_returns_metrics() -> pl.DataFrame:
                 }
             )
 
-    return pl.DataFrame(rows).with_columns(pl.col("date").cast(pl.Date))
+    return pd.DataFrame(rows)
 
 
-def generate_data_quality_metrics() -> pl.DataFrame:
+def generate_data_quality_data() -> pd.DataFrame:
     """Generate data quality metrics for multiple datasets over time."""
     datasets = ["users", "orders", "products", "events"]
     start = date(2024, 1, 1)
@@ -76,51 +81,78 @@ def generate_data_quality_metrics() -> pl.DataFrame:
                 }
             )
 
-    return pl.DataFrame(rows).with_columns(pl.col("date").cast(pl.Date))
+    return pd.DataFrame(rows)
 
 
-def generate_model_performance_metrics() -> pl.DataFrame:
-    """Generate ML model performance metrics across multiple models over time."""
-    models = ["linear_v1", "xgboost_v2", "neural_v3"]
-    n_months = 12
+def _populate_metrics_store(store: MetricsStore) -> int:
+    """Compute and store summary metrics for demo datasets."""
+    count = 0
 
-    rows: list[dict] = []
-    seed = 77
-    for i, model_name in enumerate(models):
-        base_rmse = 0.15 - i * 0.02
-        base_r2 = 0.70 + i * 0.08
-        for m in range(n_months):
-            seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
-            jitter = (seed / 0x7FFFFFFF - 0.5) * 0.04
-            rmse = max(0.01, base_rmse + jitter - m * 0.002)
-            r2 = min(0.99, base_r2 - jitter + m * 0.005)
-            seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
-            sharpe = 0.5 + i * 0.3 + (seed / 0x7FFFFFFF - 0.5) * 0.4
-            rows.append(
-                {
-                    "date": date(2024, m + 1, 1),
-                    "entity": model_name,
-                    "rmse": round(rmse, 4),
-                    "r_squared": round(r2, 4),
-                    "sharpe_ratio": round(sharpe, 2),
-                }
+    # Stock return summary metrics per ticker
+    df = generate_stock_returns_data()
+    for ticker, grp in df.groupby("ticker"):
+        dataset_id = "data-prep:clean_prices"
+        for metric_name, value in [
+            (f"{ticker}_mean_return", grp["daily_return_pct"].mean()),
+            (f"{ticker}_volatility", grp["volatility_30d"].mean()),
+            (f"{ticker}_cumulative_return", grp["cumulative_return_pct"].iloc[-1]),
+            (f"{ticker}_final_price", grp["price"].iloc[-1]),
+        ]:
+            store.record_metric(
+                MetricRecord(dataset_id=dataset_id, metric_name=metric_name, metric_value=value)
             )
+            count += 1
 
-    return pl.DataFrame(rows).with_columns(pl.col("date").cast(pl.Date))
+    # Data quality summary metrics per dataset
+    dq = generate_data_quality_data()
+    for entity, grp in dq.groupby("entity"):
+        dataset_id = f"landing:{entity}"
+        for metric_name, value in [
+            ("avg_completeness", grp["completeness_pct"].mean()),
+            ("avg_null_pct", grp["null_pct"].mean()),
+            ("avg_freshness_hours", grp["freshness_hours"].mean()),
+            ("latest_row_count", float(grp["row_count"].iloc[-1])),
+        ]:
+            store.record_metric(
+                MetricRecord(dataset_id=dataset_id, metric_name=metric_name, metric_value=value)
+            )
+            count += 1
+
+    return count
 
 
-# Registry of available fixture datasets: name -> (generator, description)
+def setup() -> None:
+    """Populate the demo metrics store with sample computed metrics."""
+    if DEMO_DIR.exists():
+        shutil.rmtree(DEMO_DIR)
+    DEMO_DIR.mkdir(parents=True, exist_ok=True)
+
+    store = MetricsStore(str(METRICS_DB))
+    n = _populate_metrics_store(store)
+    store.close()
+
+    print(f"Demo metrics written to {METRICS_DB}")
+    print(f"  Metrics recorded: {n}")
+
+
+# Keep fixture registry for backward compatibility and timeseries exploration
 FIXTURE_REGISTRY: dict[str, tuple] = {
     "Stock Returns": (
-        generate_stock_returns_metrics,
+        generate_stock_returns_data,
         "Daily return metrics for 5 stocks over ~1 year",
     ),
     "Data Quality": (
-        generate_data_quality_metrics,
+        generate_data_quality_data,
         "Weekly data quality metrics for 4 datasets over 1 year",
     ),
-    "Model Performance": (
-        generate_model_performance_metrics,
-        "Monthly ML model performance metrics for 3 models over 1 year",
-    ),
 }
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="acme-metrics demo setup")
+    parser.add_argument("--setup", action="store_true", help="Populate fixture data")
+    args = parser.parse_args()
+    if args.setup:
+        setup()
+    else:
+        parser.print_help()

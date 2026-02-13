@@ -78,3 +78,6 @@ TODO.md
 
 # tooling
 .ruff_cache
+# DuckDB
+*.duckdb
+*.duckdb.wal

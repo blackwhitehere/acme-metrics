@@ -1,15 +1,25 @@
 [build-system]
-requires = [ "setuptools>=46.4.0", "wheel>=0.36.2"]
+requires = ["setuptools>=46.4.0", "wheel>=0.36.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "acme_metrics"
-version = "0.0.1"
-description = "Compute metrics from data"
+version = "0.0.2"
+description = "Metrics computation framework with composable stage decorators"
 readme = "README.md"
-classifiers = [ "Programming Language :: Python :: 3.12", ]
+classifiers = ["Programming Language :: Python :: 3.12"]
 requires-python = ">=3.12"
-dependencies = [ "python-dotenv", "polars", "pyarrow", "acme_dw>=0.0.4" ]
+dependencies = [
+    "python-dotenv",
+    "pandas",
+    "pyarrow",
+    "duckdb",
+    "acme_metadeco[duckdb]",
+    "acme_config",
+    "acme_data_catalog",
+    "acme_streamlit",
+    "streamlit",
+]
 
 [[project.authors]]
 email = "guner.stan@gmail.com"
@@ -23,25 +33,34 @@ repository = "https://example.com"
 
 [project.optional-dependencies]
 dev = [
-    "pytest",               # for testing
-    "uv",                   # for venv
-    "mkdocs",               # for documentation
-    "mkdocs-material",      # theme for mkdocs
-    "mkdocstrings[python]", # mkdocs plugin to generate API docs from sources
-    "jupyterlab",           # for jupyter notebooks
-    "isort",                # for import sorting
-    "ruff",                 # for linting
-    "pre-commit",           # for pre-commit hooks
+    "pytest",
+    "uv",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "ruff",
 ]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["acme_metrics"]
-# https://github.com/astral-sh/uv/issues/9513#issuecomment-2519527822
+packages = ["acme_metrics", "acme_metrics.ui"]
 license-files = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
 
 [dependency-groups]
 dev = [
-    "streamlit>=1.54.0",
+    "pytest>=8.0",
+    "ruff>=0.9.0",
 ]
-# [tool.setuptools.package-data]
+
+[tool.uv.sources]
+acme_metadeco = { path = "../acme-metadeco", editable = true }
+acme_config = { path = "../acme-config", editable = true }
+acme_data_catalog = { path = "../acme-data-catalog", editable = true }
+acme_streamlit = { path = "../acme-streamlit", editable = true }

@@ -9,6 +9,16 @@ default:
 sync-py-env:
     uv sync --all-extras --dev
 
+upgrade-py-env:
+    #!/bin/bash
+    set -euoxv pipefail
+    if [ $# -eq 1 ]; then
+        uv lock --upgrade-package "$1"
+    else
+        uv lock --upgrade
+    fi
+    uv sync --all-extras --dev
+
 # Run all tests
 test:
     uv run pytest tests/ -v
@@ -35,14 +45,23 @@ clean:
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-# Launch demo: Streamlit dashboard showcasing metrics visualization
-demo:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Launching metrics demo dashboard..."
+# Remove demo fixture data
+demo-clean:
+    rm -rf src/acme_metrics/_demo_data
+    @echo "Demo data cleaned"
+
+# Populate demo fixture data
+demo-fixtures:
+    uv run python -m acme_metrics.demo --setup
+
+# Launch Streamlit demo UI (requires fixtures)
+demo-ui:
     uv run python -m streamlit run src/acme_metrics/demo_app.py \
         --server.address localhost \
         --browser.gatherUsageStats false
+
+# Full demo: clean, populate fixtures, and launch UI
+demo: demo-clean demo-fixtures demo-ui
 
 # Build and serve docs in dev mode
 docs:

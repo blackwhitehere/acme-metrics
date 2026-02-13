@@ -1,12 +1,18 @@
-import logging
+"""acme-metrics — metadeco-traced metric computation framework."""
 
-from dotenv import load_dotenv
+from acme_metrics.config import MetricsConfig, get_config, reset_config
+from acme_metrics.decorators import compute, load, save
+from acme_metrics.metrics_job import metrics_job
+from acme_metrics.store import MetricRecord, MetricsStore
 
-from acme_metrics.data_metrics import add_new_metrics, create_metrics  # noqa
-
-load_dotenv()
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(pathname)s | %(name)s | func: %(funcName)s:%(lineno)s | %(levelname)s | %(message)s",
-)
+__all__ = [
+    "MetricsConfig",
+    "MetricRecord",
+    "MetricsStore",
+    "compute",
+    "get_config",
+    "load",
+    "metrics_job",
+    "reset_config",
+    "save",
+]
