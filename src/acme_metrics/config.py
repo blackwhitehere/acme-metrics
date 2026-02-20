@@ -16,7 +16,6 @@ class MetricsConfig(AppConfig):
 
         METRICS_STORE_DB_PATH=metrics.duckdb
         METRICS_METADECO_DB_PATH=traces.duckdb
-        METRICS_CATALOG_DB_PATH=catalog.duckdb
     """
 
     model_config = {"env_prefix": "METRICS_"}
@@ -31,11 +30,6 @@ class MetricsConfig(AppConfig):
         description="Path to the DuckDB file for execution traces",
     )
 
-    catalog_db_path: str = ConfigField(
-        default="",
-        description="Catalog DB path for registration (empty = disabled)",
-    )
-
 
 _config: MetricsConfig | None = None
 
@@ -44,7 +38,7 @@ def get_config(**overrides: object) -> MetricsConfig:
     """Return the resolved config, creating it on first call."""
     global _config
     if _config is None or overrides:
-        _config = resolve_config(MetricsConfig, **overrides)
+        _config = resolve_config(MetricsConfig, overrides=overrides or None)
     return _config
 
 

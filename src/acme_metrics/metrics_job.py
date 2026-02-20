@@ -35,7 +35,7 @@ from typing import Any
 import pandas as pd
 from acme_metadeco import run as metadeco_run
 
-from acme_metrics.config import MetricsConfig, get_config
+from acme_metrics.config import get_config
 from acme_metrics.decorators import load, save
 from acme_metrics.store import MetricRecord, MetricsStore
 
@@ -66,26 +66,28 @@ def _save_metrics(
 
 
 def _register_in_catalog(
-    config: MetricsConfig,
     job_name: str,
     dataset_id: str,
     metrics: dict[str, float],
 ) -> None:
     """Record in the catalog that this dataset has computed metrics."""
     try:
-        from acme_data_catalog import CatalogStore, Metric
+        from acme_data_catalog import CatalogClient, Metric
 
-        cat = CatalogStore(config.catalog_db_path)
-        for metric_name, metric_value in metrics.items():
-            cat.record_metric(
-                Metric(
-                    dataset_id=dataset_id,
-                    metric_name=metric_name,
-                    metric_value=metric_value,
-                    metadata={"source": "acme-metrics", "job": job_name},
+        with CatalogClient.from_env() as client:
+            for metric_name, metric_value in metrics.items():
+                client.record_metric(
+                    Metric(
+                        dataset_id=dataset_id,
+                        metric_name=metric_name,
+                        metric_value=metric_value,
+                        metadata={"source": "acme-metrics", "job": job_name},
+                    )
                 )
-            )
-        cat.close()
+    except ImportError:
+        logger.info("acme_data_catalog extension is not installed; skipping catalog registration")
+    except ValueError:
+        logger.info("ACME_DATA_CATALOG_DB_PATH not configured; skipping catalog registration")
     except Exception:
         logger.warning("Failed to register metrics in catalog", exc_info=True)
 
@@ -132,8 +134,7 @@ def metrics_job(
                 metrics = fn(loaded)
                 _save_metrics(store, dataset_id, metrics)
 
-            if config.catalog_db_path:
-                _register_in_catalog(config, name, dataset_id, metrics)
+            _register_in_catalog(name, dataset_id, metrics)
 
             store.close()
             return metrics

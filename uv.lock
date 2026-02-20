@@ -123,7 +123,6 @@ version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "acme-config" },
-    { name = "acme-data-catalog" },
     { name = "acme-metadeco", extra = ["duckdb"] },
     { name = "acme-streamlit" },
     { name = "duckdb" },
@@ -134,6 +133,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+catalog = [
+    { name = "acme-data-catalog" },
+]
 dev = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
@@ -152,7 +154,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "acme-config", editable = "../acme-config" },
-    { name = "acme-data-catalog", editable = "../acme-data-catalog" },
+    { name = "acme-data-catalog", marker = "extra == 'catalog'", editable = "../acme-data-catalog" },
     { name = "acme-metadeco", extras = ["duckdb"], editable = "../acme-metadeco" },
     { name = "acme-streamlit", editable = "../acme-streamlit" },
     { name = "duckdb" },
@@ -167,7 +169,7 @@ requires-dist = [
     { name = "streamlit" },
     { name = "uv", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["catalog", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

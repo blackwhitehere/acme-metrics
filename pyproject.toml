@@ -16,7 +16,6 @@ dependencies = [
     "duckdb",
     "acme_metadeco[duckdb]",
     "acme_config",
-    "acme_data_catalog",
     "acme_streamlit",
     "streamlit",
 ]
@@ -32,6 +31,9 @@ homepage = "https://example.com"
 repository = "https://example.com"
 
 [project.optional-dependencies]
+catalog = [
+    "acme_data_catalog",
+]
 dev = [
     "pytest",
     "uv",
