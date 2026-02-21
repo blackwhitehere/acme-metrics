@@ -1,9 +1,7 @@
-"""The ``@metrics_job`` decorator — core API of acme-metrics.
+"""The ``@metrics_job`` decorator for programmatic metric execution.
 
-Wraps a user-defined computation function with automatic data loading,
-metric storage, and metadeco execution tracing.  The user function
-receives a ``pd.DataFrame`` and returns a ``dict[str, float]`` of
-computed metric values.
+Wraps a user-defined computation function and executes it through the
+same runner pipeline used by project-mode metrics execution.
 
 Example::
 
@@ -28,68 +26,28 @@ Example::
 from __future__ import annotations
 
 import functools
-import logging
 from collections.abc import Callable
 from typing import Any
 
 import pandas as pd
-from acme_metadeco import run as metadeco_run
 
 from acme_metrics.config import get_config
-from acme_metrics.decorators import load, save
-from acme_metrics.store import MetricRecord, MetricsStore
-
-logger = logging.getLogger(__name__)
-
-
-@load
-def _load_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Pass through — data is provided by the caller."""
-    return df
+from acme_metrics.core import MetricSpec
+from acme_metrics.orchestration import MetricsRunner
+from acme_metrics.targets.duckdb import DuckDBTarget
 
 
-@save
-def _save_metrics(
-    store: MetricsStore,
-    dataset_id: str,
-    metrics: dict[str, float],
-) -> None:
-    """Persist computed metrics to the metrics store."""
-    for name, value in metrics.items():
-        store.record_metric(
-            MetricRecord(
-                dataset_id=dataset_id,
-                metric_name=name,
-                metric_value=value,
-            )
-        )
-
-
-def _register_in_catalog(
-    job_name: str,
-    dataset_id: str,
-    metrics: dict[str, float],
-) -> None:
-    """Record in the catalog that this dataset has computed metrics."""
-    try:
-        from acme_data_catalog import CatalogClient, Metric
-
-        with CatalogClient.from_env() as client:
-            for metric_name, metric_value in metrics.items():
-                client.record_metric(
-                    Metric(
-                        dataset_id=dataset_id,
-                        metric_name=metric_name,
-                        metric_value=metric_value,
-                        metadata={"source": "acme-metrics", "job": job_name},
-                    )
-                )
-    except ImportError:
-        logger.info("acme_data_catalog extension is not installed; skipping catalog registration")
-    except ValueError:
-        logger.info("ACME_DATA_CATALOG_DB_PATH not configured; skipping catalog registration")
-    except Exception:
-        logger.warning("Failed to register metrics in catalog", exc_info=True)
+def _to_metrics_df(metrics: dict[str, float]) -> pd.DataFrame:
+    """Convert metric dict into standard metric row dataframe."""
+    return pd.DataFrame(
+        [
+            {
+                "metric_name": metric_name,
+                "metric_value": float(metric_value),
+            }
+            for metric_name, metric_value in metrics.items()
+        ]
+    )
 
 
 def metrics_job(
@@ -99,17 +57,9 @@ def metrics_job(
 ) -> Callable:
     """Decorator that turns a metric computation function into a traced job.
 
-    The decorated function should accept a ``pd.DataFrame`` and return
-    a ``dict[str, float]`` mapping metric names to values.  When called
-    with a DataFrame, the framework:
-
-    1. Resolves ``MetricsConfig`` from the environment.
-    2. Opens a metadeco tracing context.
-    3. Passes the DataFrame through a ``@load``-decorated stage.
-    4. Calls the user function to compute metrics.
-    5. Persists metrics to the ``MetricsStore`` via a ``@save`` stage.
-    6. Optionally registers metrics in the catalog.
-    7. Returns the computed metrics dict.
+    The decorated function accepts a source ``pd.DataFrame`` and returns
+    ``dict[str, float]``. The decorator bridges this into the project-mode
+    metric pipeline and persists results with the default DuckDB target.
 
     Args:
         name: Job name (used as metadeco app_name and for logging).
@@ -123,21 +73,32 @@ def metrics_job(
         @functools.wraps(fn)
         def wrapper(df: pd.DataFrame, **config_overrides: Any) -> dict[str, float]:
             config = get_config(**config_overrides)
-            store = MetricsStore(config.store_db_path)
+            computed_metrics: dict[str, float] = {}
 
-            with metadeco_run(
-                name,
-                db_path=config.metadeco_db_path,
-                metadata=metadata or {},
-            ):
-                loaded = _load_data(df)
-                metrics = fn(loaded)
-                _save_metrics(store, dataset_id, metrics)
+            def _compute(source_df: pd.DataFrame, existing_df: pd.DataFrame) -> pd.DataFrame:
+                del existing_df
+                nonlocal computed_metrics
+                computed_metrics = fn(source_df)
+                return _to_metrics_df(computed_metrics)
 
-            _register_in_catalog(name, dataset_id, metrics)
+            metric_spec = MetricSpec(
+                metric_id=name,
+                source_id=dataset_id,
+                compute_fn=_compute,
+            )
+            target = DuckDBTarget(target_id="default", db_path=config.store_db_path)
+            runner = MetricsRunner(config)
 
-            store.close()
-            return metrics
+            existing_df = target.load_metrics(metric_spec.metric_id, metric_spec.source_id)
+            runner.run(
+                metric=metric_spec,
+                source_df=df,
+                existing_df=existing_df,
+                target=target,
+                run_name=name,
+                metadata=metadata,
+            )
+            return computed_metrics
 
         return wrapper
 

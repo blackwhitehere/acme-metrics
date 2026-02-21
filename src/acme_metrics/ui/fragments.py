@@ -16,6 +16,8 @@ from acme_metrics.store import MetricsStore
 if TYPE_CHECKING:
     from acme_metadeco.storage.query import QueryInterface
 
+    from acme_metrics.launch import LaunchContext
+
 
 class MetricsJobsFragment:
     """Shows metrics job execution history from metadeco traces."""
@@ -154,3 +156,57 @@ class MetricsBrowserFragment:
                 st.dataframe(pd.DataFrame(all_rows), use_container_width=True)
             else:
                 st.info("No metrics recorded across any dataset.")
+
+
+class MetricsProjectOverviewFragment:
+    """Shows project-level sources/metrics/targets discovered for deployment mode."""
+
+    name = "Project Overview"
+    description = "Inspect discovered sources, metrics, and targets"
+    icon = "🧭"
+
+    def __init__(self, context: LaunchContext) -> None:
+        self._context = context
+
+    def render(self) -> None:
+        st.markdown("## Metrics Project Overview")
+
+        if self._context.config_root:
+            st.caption(f"Config root: {self._context.config_root}")
+
+        metrics_row(
+            [
+                ("Sources", len(self._context.source_ids)),
+                ("Metrics", len(self._context.metric_bindings)),
+                ("Targets", len(self._context.target_ids)),
+            ]
+        )
+
+        if self._context.source_ids:
+            st.markdown("### Sources")
+            st.dataframe(
+                pd.DataFrame([{"Source ID": source_id} for source_id in self._context.source_ids]),
+                use_container_width=True,
+            )
+
+        if self._context.metric_bindings:
+            st.markdown("### Metrics")
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "Metric ID": metric_id,
+                            "Source ID": source_id,
+                        }
+                        for metric_id, source_id in self._context.metric_bindings
+                    ]
+                ),
+                use_container_width=True,
+            )
+
+        if self._context.target_ids:
+            st.markdown("### Targets")
+            st.dataframe(
+                pd.DataFrame([{"Target ID": target_id} for target_id in self._context.target_ids]),
+                use_container_width=True,
+            )

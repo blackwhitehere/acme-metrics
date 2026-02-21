@@ -45,8 +45,11 @@ dev = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["acme_metrics", "acme_metrics.ui"]
 license-files = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["acme_metrics*"]
 
 [tool.ruff]
 line-length = 100
